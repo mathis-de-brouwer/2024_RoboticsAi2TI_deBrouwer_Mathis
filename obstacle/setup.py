@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'obstacle_avoidance_node = obstacle_avoidance.obstacle_avoidances:main',
+            'obstacle_avoidance = obstacle_avoidance.obstacle_avoidances:main',
         ],
     },
 )

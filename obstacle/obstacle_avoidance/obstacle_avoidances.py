@@ -60,15 +60,15 @@ class ObstacleAvoidance(Node):
             return
 
         # Get minimum distances
-        front_distances = np.min(self.lidar_data[90:270])
-        left_distances = np.min(self.lidar_data[60:120])
-        right_distances = np.min(self.lidar_data[240:300])
+        front_distances = np.min(np.concatenate((self.lidar_data[-15:], self.lidar_data[:15])))
+        left_distances = np.min(self.lidar_data[-90:-15])
+        right_distances = np.min(self.lidar_data[15:90])
         
         #loggin the FF14
         self.get_logger().info(f"Front: {front_distances}, Left: {left_distances}, Right: {right_distances}")
 
         # Decision logic (no logic :p )
-        if front_distances < 0.4:  # Obstacle ahead? ahoy
+        if front_distances < 0.35:  # Obstacle ahead? ahoy
             # Determine turn direction based on left/right dist
             if left_distances + 0.1 < right_distances:
                 self.turn_direction = 1  # Turn left

@@ -14,7 +14,7 @@ class StraightAndStop(Node):
 
         # Set QoS profile for subscriber
         self.qos_profile = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
+            reliability=ReliabilityPolicy.SYSTEM_DEFAULT,
             depth=10
         )
 
@@ -46,12 +46,12 @@ class StraightAndStop(Node):
         cmd = Twist()
 
         # Get the minimum distance directly in front of the robot (90° to 270° range)
-        front_distance = np.min(self.lidar_data[90:270])
+        front_distance = np.min(self.lidar_data[-30])
 
         # Log the front distance for debugging
         self.get_logger().info(f"Front distance: {front_distance}")
 
-        if front_distance < 0.4:  # Stop if an obstacle is closer than 0.4 meters
+        if front_distance < 0.4:  # Stop if an obstacle is closer than 0.n meters
             cmd.linear.x = 0.0  # Stop the robot
             self.get_logger().info("Obstacle detected! Stopping.")
         else:
