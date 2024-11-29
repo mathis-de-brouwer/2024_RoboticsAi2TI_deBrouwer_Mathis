@@ -7,7 +7,7 @@ import numpy as np
 
 class StraightAndStop(Node):
     def __init__(self):
-        super().__init__('straight_and_stop')
+        super().__init__('straightandstop')
 
         # Publisher for velocity commands
         self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
