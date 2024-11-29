@@ -25,15 +25,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'straightandstop = straight_stop.straightandstop:main',
         ],
     },
-)
-
-setup(
-    install_requires=[
-        'setuptools',
-        'rclpy',
-        'geometry_msgs',
-        'sensor_msgs',
-    ],
 )

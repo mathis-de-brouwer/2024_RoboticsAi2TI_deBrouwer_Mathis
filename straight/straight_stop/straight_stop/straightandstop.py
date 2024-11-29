@@ -3,7 +3,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
 import numpy as np
-
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 class StraightAndStop(Node):
     def __init__(self):
@@ -12,12 +12,18 @@ class StraightAndStop(Node):
         # Publisher for velocity commands
         self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
 
+        # Set QoS profile for subscriber
+        self.qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            depth=10
+        )
+
         # Subscriber for LiDAR data
         self.subscription = self.create_subscription(
             LaserScan,
             '/scan',
             self.lidar_callback,
-            10
+            self.qos_profile
         )
 
         # Timer to control robot movement
