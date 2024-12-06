@@ -51,7 +51,7 @@ class StraightAndStop(Node):
         # Log the front distance for debugging
         self.get_logger().info(f"Front distance: {front_distance}")
 
-        if front_distance < 0.4:  # Stop if an obstacle is closer than 0.n meters
+        if front_distance < 0.5:  # Stop if an obstacle is closer than 0.n meters
             cmd.linear.x = 0.0  # Stop the robot
             self.get_logger().info("Obstacle detected! Stopping.")
         else:
