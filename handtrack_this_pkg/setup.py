@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'ohandtrack_this_pkg'
+package_name = 'handtrack_this_pkg'
 
 setup(
     name=package_name,
@@ -11,7 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'rclpy', 'opencv-python'],
     zip_safe=True,
     maintainer='ththis',
     maintainer_email='mathis.debrouwer@gmail.com',
