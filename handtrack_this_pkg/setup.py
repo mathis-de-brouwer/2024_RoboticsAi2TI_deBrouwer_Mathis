@@ -11,7 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),('share/handtrack_this_pkg/launch', ['launch/handtrack_this_pkg_launch_file.launch.py']),
     ],
-    install_requires=['setuptools', 'rclpy', 'opencv-python'],
+    install_requires=['setuptools', 'rclpy', 'opencv-python', 'mediapipe'],
     zip_safe=True,
     maintainer='ththis',
     maintainer_email='mathis.debrouwer@gmail.com',
