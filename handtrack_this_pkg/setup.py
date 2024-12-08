@@ -9,7 +9,7 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name, ['package.xml']),('share/handtrack_this_pkg/launch', ['launch/handtrack_this_pkg_launch_file.launch.py']),
     ],
     install_requires=['setuptools', 'rclpy', 'opencv-python'],
     zip_safe=True,
