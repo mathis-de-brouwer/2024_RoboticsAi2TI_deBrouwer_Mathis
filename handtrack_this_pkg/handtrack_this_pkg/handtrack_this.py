@@ -52,21 +52,41 @@ class handDetector(Node):
         # Finger tips IDs
         tipIds = [4, 8, 12, 16, 20]  # thumb, index, middle, ring, pinky
         
-        # For thumb - check if it's on right side of hand
-        if lmList[tipIds[0]][1] > lmList[tipIds[0] - 1][1]:
-            fingers.append(1)
-        else:
-            fingers.append(0)
-            
-        # For other 4 fingers
-        for id in range(1, 5):
-            if lmList[tipIds[id]][2] < lmList[tipIds[id] - 2][2]:
+        # Detect if it's left or right hand
+        # If thumb is on the right side of index finger base, it's right hand
+        is_right_hand = lmList[4][1] > lmList[5][1]
+        
+        # For thumb - special case
+        if is_right_hand:
+            # For right hand - thumb is up if it's on the left of its base
+            if lmList[4][1] < lmList[2][1]:
                 fingers.append(1)
             else:
                 fingers.append(0)
+        else:
+            # For left hand - thumb is up if it's on the right of its base
+            if lmList[4][1] > lmList[2][1]:
+                fingers.append(1)
+            else:
+                fingers.append(0)
+            
+        # For other 4 fingers - check if finger tip is above the middle joint
+        for id in range(1, 5):
+            if lmList[tipIds[id]][2] < lmList[tipIds[id] - 2][2]:  # Compare with middle joint
+                fingers.append(1)
+            else:
+                fingers.append(0)
+                
+        # Debug information
+        hand_type = "Right" if is_right_hand else "Left"
+        cv2.putText(img, f'Hand: {hand_type}', (10,100), 
+                   cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
+        cv2.putText(img, f'Thumb: {fingers[0]}', (10,130), 
+                   cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
+        cv2.putText(img, f'Others: {fingers[1:]}', (10,160), 
+                   cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
         
-        total = sum(fingers)
-        return total
+        return sum(fingers)
 
     def get_command_text(self, fingers_up):
         if fingers_up == 5:
