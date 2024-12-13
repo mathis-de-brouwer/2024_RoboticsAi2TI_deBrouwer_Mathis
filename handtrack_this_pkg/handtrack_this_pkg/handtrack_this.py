@@ -43,7 +43,7 @@ class handDetector(Node):
                     cv2.circle(img,(cx,cy),5,(255,0,255),cv2.FILLED)
         return lmList
 
-    def countFingers(self, lmList, img):
+    def countFingers(self, lmList):
         if len(lmList) == 0:
             return 0
         
@@ -52,39 +52,18 @@ class handDetector(Node):
         # Finger tips IDs
         tipIds = [4, 8, 12, 16, 20]  # thumb, index, middle, ring, pinky
         
-        # Detect if it's left or right hand
-        # If thumb is on the right side of index finger base, it's right hand
-        is_right_hand = lmList[4][1] > lmList[5][1]
-        
-        # For thumb - special case
-        if is_right_hand:
-            # For right hand - thumb is up if it's on the left of its base
-            if lmList[4][1] < lmList[2][1]:
-                fingers.append(1)
-            else:
-                fingers.append(0)
+        # For thumb
+        if lmList[4][1] < lmList[3][1]:
+            fingers.append(1)
         else:
-            # For left hand - thumb is up if it's on the right of its base
-            if lmList[4][1] > lmList[2][1]:
-                fingers.append(1)
-            else:
-                fingers.append(0)
+            fingers.append(0)
             
-        # For other 4 fingers - check if finger tip is above the middle joint
+        # For other 4 fingers
         for id in range(1, 5):
-            if lmList[tipIds[id]][2] < lmList[tipIds[id] - 2][2]:  # Compare with middle joint
+            if lmList[tipIds[id]][2] < lmList[tipIds[id] - 2][2]:
                 fingers.append(1)
             else:
                 fingers.append(0)
-                
-        # Debug information
-        hand_type = "Right" if is_right_hand else "Left"
-        cv2.putText(img, f'Hand: {hand_type}', (10,100), 
-                   cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
-        cv2.putText(img, f'Thumb: {fingers[0]}', (10,130), 
-                   cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
-        cv2.putText(img, f'Others: {fingers[1:]}', (10,160), 
-                   cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
         
         return sum(fingers)
 
@@ -120,7 +99,7 @@ def main(args=None):
         
         command_text = "NO HAND DETECTED"
         if len(lmList) != 0:
-            fingers_up = detector.countFingers(lmList, img)
+            fingers_up = detector.countFingers(lmList)
             command_text = detector.get_command_text(fingers_up)
             
             # Publish gesture command
