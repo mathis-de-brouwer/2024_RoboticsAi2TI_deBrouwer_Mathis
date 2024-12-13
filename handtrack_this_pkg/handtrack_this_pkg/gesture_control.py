@@ -3,18 +3,17 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Float32MultiArray
-import numpy as np
+from std_msgs.msg import Int32
 
 class GestureController(Node):
     def __init__(self):
         super().__init__('gesture_controller')
         
-        # Create subscriber for hand tracking data
+        # Create subscriber for hand gesture data
         self.hand_sub = self.create_subscription(
-            Float32MultiArray,
-            'hand_landmarks',
-            self.hand_callback,
+            Int32,
+            'hand_gesture',
+            self.gesture_callback,
             10)
             
         # Create publisher for Turtlebot velocity commands
@@ -24,39 +23,33 @@ class GestureController(Node):
             10)
             
         self.get_logger().info('Gesture Controller Node Started')
-        
-    def hand_callback(self, msg):
-        # Create Twist message for robot velocity
+    
+    def gesture_callback(self, msg):
         vel_msg = Twist()
         
-        # Get hand landmarks data
-        landmarks = np.array(msg.data).reshape(-1, 3)
+        # Get number of fingers up
+        fingers_up = msg.data
         
-        # Example gesture controls:
-        # You can modify these based on your preferred gestures
-        
-        # Calculate hand height (using landmark 9 - middle of palm)
-        hand_height = landmarks[9][1]
-        
-        # Calculate hand horizontal position
-        hand_x = landmarks[9][0]
-        
-        # Forward/Backward based on hand height
-        if hand_height < 0.3:  # Hand high - move forward
+        # Open hand (5 fingers) - Move forward
+        if fingers_up == 5:
             vel_msg.linear.x = 0.2
-        elif hand_height > 0.7:  # Hand low - move backward
-            vel_msg.linear.x = -0.2
-        else:
-            vel_msg.linear.x = 0.0
-            
-        # Turning based on hand horizontal position
-        if hand_x < 0.3:  # Hand left - turn left
-            vel_msg.angular.z = 0.5
-        elif hand_x > 0.7:  # Hand right - turn right
-            vel_msg.angular.z = -0.5
-        else:
             vel_msg.angular.z = 0.0
-            
+        
+        # Closed hand (0 fingers) - Stop
+        elif fingers_up == 0:
+            vel_msg.linear.x = 0.0
+            vel_msg.angular.z = 0.0
+        
+        # 1 finger - Turn left
+        elif fingers_up == 1:
+            vel_msg.linear.x = 0.0
+            vel_msg.angular.z = 0.5  # Positive value for left turn
+        
+        # 3 fingers - Turn right
+        elif fingers_up == 3:
+            vel_msg.linear.x = 0.0
+            vel_msg.angular.z = -0.5  # Negative value for right turn
+        
         # Publish velocity command
         self.vel_pub.publish(vel_msg)
 

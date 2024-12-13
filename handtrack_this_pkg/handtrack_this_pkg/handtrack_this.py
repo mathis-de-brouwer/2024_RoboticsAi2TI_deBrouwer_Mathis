@@ -1,9 +1,13 @@
 import cv2
 import mediapipe as mp
 import time
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Int32
 
-class handDetector():
+class handDetector(Node):
     def __init__(self, mode=False, maxHands=2, detectionCon=0.5, trackCon=0.5):
+        super().__init__('hand_detector')
         self.mode = mode
         self.maxHands = maxHands
         self.detectionCon = detectionCon
@@ -12,6 +16,9 @@ class handDetector():
         self.mpHands = mp.solutions.hands
         self.hands = self.mpHands.Hands(self.mode,self.maxHands)
         self.mpDraw = mp.solutions.drawing_utils
+        
+        # Create publisher for gesture commands
+        self.gesture_publisher = self.create_publisher(Int32, 'hand_gesture', 10)
 
     def findHands(self,img, draw=True):
         imgRGB = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
@@ -20,51 +27,80 @@ class handDetector():
             for handLms in self.results.multi_hand_landmarks:
                 if draw:
                     self.mpDraw.draw_landmarks(img,handLms,self.mpHands.HAND_CONNECTIONS)
-
         return img
 
     def findPosition(self, img, handno=0, draw=True):
-
         lmList = []
         if self.results.multi_hand_landmarks:
-            myHand= self.results.multi_hand_landmarks[handno]
-
+            myHand = self.results.multi_hand_landmarks[handno]
             for id,lm in enumerate(myHand.landmark):
                 h,w,c = img.shape
                 cx,cy = int(lm.x*w), int(lm.y*h)
-                #print (id,cx,cy)
                 lmList.append([id,cx,cy])
-                #if id == 4:
                 if draw:
                     cv2.circle(img,(cx,cy),7,(255,0,255),cv2.FILLED)
-
         return lmList
 
+    def countFingers(self, lmList):
+        if len(lmList) == 0:
+            return 0
+        
+        fingers = []
+        
+        # Thumb
+        if lmList[4][1] < lmList[3][1]:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+        
+        # 4 Fingers
+        for tip in [8, 12, 16, 20]:
+            if lmList[tip][2] < lmList[tip-2][2]:
+                fingers.append(1)
+            else:
+                fingers.append(0)
+                
+        return sum(fingers)
 
-def main():
+def main(args=None):
+    rclpy.init(args=args)
+    
     pTime = 0
     cTime = 0
-
+    
     cap = cv2.VideoCapture(0)
     detector = handDetector()
-
-    while True:
+    
+    while rclpy.ok():
         success, img = cap.read()
         img = detector.findHands(img)
-
         lmList = detector.findPosition(img)
-        if (len(lmList)!=0):
-            print(lmList[4])
-
+        
+        if len(lmList) != 0:
+            fingers_up = detector.countFingers(lmList)
+            
+            # Publish gesture command
+            msg = Int32()
+            msg.data = fingers_up
+            detector.gesture_publisher.publish(msg)
+            
+            # Display finger count
+            cv2.putText(img, f'Fingers: {fingers_up}', (10,120), 
+                       cv2.FONT_HERSHEY_PLAIN, 3, (255,0,255), 3)
+        
         cTime = time.time()
-        fps=1/(cTime-pTime)
-        pTime=cTime
-
+        fps = 1/(cTime-pTime)
+        pTime = cTime
+        
         cv2.putText(img,str(int(fps)),(10,70),cv2.FONT_HERSHEY_PLAIN,3,(255,0,255),3)
         cv2.imshow("Image", img)
-        cv2.waitKey(1)
-
-
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    
+    cap.release()
+    cv2.destroyAllWindows()
+    detector.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == "__main__":
     main()
