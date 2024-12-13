@@ -43,7 +43,7 @@ class handDetector(Node):
                     cv2.circle(img,(cx,cy),5,(255,0,255),cv2.FILLED)
         return lmList
 
-    def countFingers(self, lmList):
+    def countFingers(self, lmList, img):
         if len(lmList) == 0:
             return 0
         
@@ -120,7 +120,7 @@ def main(args=None):
         
         command_text = "NO HAND DETECTED"
         if len(lmList) != 0:
-            fingers_up = detector.countFingers(lmList)
+            fingers_up = detector.countFingers(lmList, img)
             command_text = detector.get_command_text(fingers_up)
             
             # Publish gesture command
