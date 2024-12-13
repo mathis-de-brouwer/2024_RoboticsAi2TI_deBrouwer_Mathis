@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'handtrack_this = handtrack_this_pkg.handtrack_this:main',
+            'gesture_control = handtrack_this_pkg.gesture_control:main',
         ],
     },
 )
