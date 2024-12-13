@@ -12,6 +12,7 @@ class RobotController(Node):
         
         # Constants for obstacle avoidance
         self.OBSTACLE_THRESHOLD = 0.35
+        self.SIDE_THRESHOLD = 0.30  # Minimum safe distance for sides
         self.FRONT_ANGLE_RANGE = 15
         self.SIDE_ANGLE_RANGE = 90
         self.LIDAR_MAX_RANGE = 3.5
@@ -111,16 +112,31 @@ class RobotController(Node):
                 self.last_command = self.current_command
                 self.publish_command_once()
 
+    def is_path_clear(self):
+        """Check if the path is clear (front and sides)"""
+        front_clear = self.front_distance > self.OBSTACLE_THRESHOLD
+        sides_clear = (self.left_distance > self.SIDE_THRESHOLD and 
+                      self.right_distance > self.SIDE_THRESHOLD)
+        return front_clear and sides_clear
+
     def start_avoidance(self):
         # Only start avoidance if not already avoiding
         if not self.avoiding:
             self.avoiding = True
             self.avoid_start_time = time.time()
+            
+            # Choose turn direction based on which side has more space
             self.turn_direction = 1 if self.left_distance > self.right_distance else -1
             self.avoidance_phase = "TURNING"
             self.get_logger().info(f'Starting avoidance maneuver, turning {"left" if self.turn_direction == 1 else "right"}')
             # Stop current movement
             self.publish_stop_command()
+
+    def continue_turning(self):
+        """Reset the turning phase to continue turning"""
+        self.avoid_start_time = time.time()
+        self.avoidance_phase = "TURNING"
+        self.get_logger().info('Continuing to turn due to obstacles')
 
     def publish_stop_command(self):
         cmd = Twist()
@@ -140,7 +156,7 @@ class RobotController(Node):
 
     def publish_command(self):
         # Check for obstacles
-        obstacle_detected = self.front_distance < self.OBSTACLE_THRESHOLD
+        obstacle_detected = not self.is_path_clear()
         
         # If obstacle state changed
         if obstacle_detected != self.last_obstacle_state:
@@ -156,13 +172,18 @@ class RobotController(Node):
             if self.avoidance_phase == "TURNING":
                 cmd.angular.z = self.TURNING_SPEED * self.turn_direction
                 
+                # Only proceed to forward phase if path is clear
                 if current_time >= self.TURN_TIME:
-                    self.avoidance_phase = "FORWARD"
-                    self.avoid_start_time = time.time()
-                    self.get_logger().info('Turn complete, moving forward')
+                    if self.is_path_clear():
+                        self.avoidance_phase = "FORWARD"
+                        self.avoid_start_time = time.time()
+                        self.get_logger().info('Turn complete, moving forward')
+                    else:
+                        # Continue turning if path isn't clear
+                        self.continue_turning()
             
             elif self.avoidance_phase == "FORWARD":
-                if self.front_distance > self.OBSTACLE_THRESHOLD:
+                if self.is_path_clear():
                     cmd.linear.x = self.FORWARD_SPEED
                     
                     if current_time >= self.FORWARD_TIME:
@@ -173,6 +194,7 @@ class RobotController(Node):
                         self.publish_command_once()
                         return
                 else:
+                    # If path becomes blocked during forward movement, restart avoidance
                     self.start_avoidance()
             
             self.cmd_vel_publisher.publish(cmd)
