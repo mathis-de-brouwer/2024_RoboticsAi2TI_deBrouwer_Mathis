@@ -14,7 +14,9 @@ class handDetector(Node):
         self.trackCon = trackCon
 
         self.mpHands = mp.solutions.hands
-        self.hands = self.mpHands.Hands(self.mode,self.maxHands)
+        self.hands = self.mpHands.Hands(self.mode, self.maxHands, 
+                                      min_detection_confidence=0.7,
+                                      min_tracking_confidence=0.7)
         self.mpDraw = mp.solutions.drawing_utils
         
         # Create publisher for gesture commands
@@ -38,7 +40,7 @@ class handDetector(Node):
                 cx,cy = int(lm.x*w), int(lm.y*h)
                 lmList.append([id,cx,cy])
                 if draw:
-                    cv2.circle(img,(cx,cy),7,(255,0,255),cv2.FILLED)
+                    cv2.circle(img,(cx,cy),5,(255,0,255),cv2.FILLED)
         return lmList
 
     def countFingers(self, lmList):
@@ -47,20 +49,31 @@ class handDetector(Node):
         
         fingers = []
         
-        # Thumb
-        if lmList[4][1] < lmList[3][1]:
+        # Thumb - comparing with wrist position instead of previous joint
+        if lmList[4][1] < lmList[0][1]:  # If thumb tip is left of wrist
             fingers.append(1)
         else:
             fingers.append(0)
         
-        # 4 Fingers
-        for tip in [8, 12, 16, 20]:
-            if lmList[tip][2] < lmList[tip-2][2]:
+        # 4 Fingers - comparing with palm position
+        for tip in [8, 12, 16, 20]:  # finger tips
+            if lmList[tip][2] < lmList[0][2] - 50:  # If finger tip is above palm by threshold
                 fingers.append(1)
             else:
                 fingers.append(0)
                 
         return sum(fingers)
+
+    def get_command_text(self, fingers_up):
+        if fingers_up == 5:
+            return "FORWARD"
+        elif fingers_up == 0:
+            return "STOP"
+        elif fingers_up == 1:
+            return "TURN LEFT"
+        elif fingers_up == 3:
+            return "TURN RIGHT"
+        return "NO COMMAND"
 
 def main(args=None):
     rclpy.init(args=args)
@@ -76,23 +89,32 @@ def main(args=None):
         img = detector.findHands(img)
         lmList = detector.findPosition(img)
         
+        command_text = "NO HAND DETECTED"
         if len(lmList) != 0:
             fingers_up = detector.countFingers(lmList)
+            command_text = detector.get_command_text(fingers_up)
             
             # Publish gesture command
             msg = Int32()
             msg.data = fingers_up
             detector.gesture_publisher.publish(msg)
             
-            # Display finger count
-            cv2.putText(img, f'Fingers: {fingers_up}', (10,120), 
-                       cv2.FONT_HERSHEY_PLAIN, 3, (255,0,255), 3)
+            # Display finger count and command
+            cv2.putText(img, f'Fingers: {fingers_up} - {command_text}', (10,70), 
+                       cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
+        else:
+            # Display no hand detected
+            cv2.putText(img, command_text, (10,70), 
+                       cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
         
         cTime = time.time()
         fps = 1/(cTime-pTime)
         pTime = cTime
         
-        cv2.putText(img,str(int(fps)),(10,70),cv2.FONT_HERSHEY_PLAIN,3,(255,0,255),3)
+        # Display FPS
+        cv2.putText(img, f'FPS: {int(fps)}', (10,30), 
+                   cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
+        
         cv2.imshow("Image", img)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
