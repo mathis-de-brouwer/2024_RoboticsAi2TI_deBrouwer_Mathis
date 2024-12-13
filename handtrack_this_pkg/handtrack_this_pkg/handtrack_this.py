@@ -49,20 +49,24 @@ class handDetector(Node):
         
         fingers = []
         
-        # Thumb - comparing with wrist position instead of previous joint
-        if lmList[4][1] < lmList[0][1]:  # If thumb tip is left of wrist
+        # Finger tips IDs
+        tipIds = [4, 8, 12, 16, 20]  # thumb, index, middle, ring, pinky
+        
+        # For thumb - check if it's on right side of hand
+        if lmList[tipIds[0]][1] > lmList[tipIds[0] - 1][1]:
             fingers.append(1)
         else:
             fingers.append(0)
-        
-        # 4 Fingers - comparing with palm position
-        for tip in [8, 12, 16, 20]:  # finger tips
-            if lmList[tip][2] < lmList[0][2] - 50:  # If finger tip is above palm by threshold
+            
+        # For other 4 fingers
+        for id in range(1, 5):
+            if lmList[tipIds[id]][2] < lmList[tipIds[id] - 2][2]:
                 fingers.append(1)
             else:
                 fingers.append(0)
-                
-        return sum(fingers)
+        
+        total = sum(fingers)
+        return total
 
     def get_command_text(self, fingers_up):
         if fingers_up == 5:
@@ -86,6 +90,11 @@ def main(args=None):
     
     while rclpy.ok():
         success, img = cap.read()
+        if not success:
+            continue
+            
+        # Flip the image horizontally for a later selfie-view display
+        img = cv2.flip(img, 1)
         img = detector.findHands(img)
         lmList = detector.findPosition(img)
         
@@ -98,6 +107,11 @@ def main(args=None):
             msg = Int32()
             msg.data = fingers_up
             detector.gesture_publisher.publish(msg)
+            
+            # Draw circles on fingertips for visualization
+            tipIds = [4, 8, 12, 16, 20]
+            for id in tipIds:
+                cv2.circle(img, (lmList[id][1], lmList[id][2]), 8, (255, 0, 0), cv2.FILLED)
             
             # Display finger count and command
             cv2.putText(img, f'Fingers: {fingers_up} - {command_text}', (10,70), 
