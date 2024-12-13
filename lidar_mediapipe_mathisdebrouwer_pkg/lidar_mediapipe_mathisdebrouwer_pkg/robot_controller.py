@@ -43,11 +43,14 @@ class RobotController(Node):
         self.FORWARD_SPEED = 0.2
         self.TURNING_SPEED = 0.5
         self.current_command = "STOP"
+        self.last_command = "STOP"  # Track last command to detect changes
+        self.last_fingers = -1  # Track last finger count
         
         # LiDAR data storage
         self.front_distance = float('inf')
         self.left_distance = float('inf')
         self.right_distance = float('inf')
+        self.last_obstacle_state = False  # Track last obstacle state
         
         # Avoidance state
         self.avoiding = False
@@ -67,20 +70,18 @@ class RobotController(Node):
             front_indices = list(front_indices) + list(range(0, self.FRONT_ANGLE_RANGE))
             front_ranges = [ranges[i] for i in front_indices if not np.isnan(ranges[i]) and not np.isinf(ranges[i])]
             
-            # Get left sector distances (wider angle for better decision making)
-            left_indices = range(45, 135)  # 90° ± 45°
+            # Get left sector distances
+            left_indices = range(45, 135)
             left_ranges = [ranges[i] for i in left_indices if not np.isnan(ranges[i]) and not np.isinf(ranges[i])]
             
-            # Get right sector distances (wider angle for better decision making)
-            right_indices = range(225, 315)  # 270° ± 45°
+            # Get right sector distances
+            right_indices = range(225, 315)
             right_ranges = [ranges[i] for i in right_indices if not np.isnan(ranges[i]) and not np.isinf(ranges[i])]
             
             # Update distances
             self.front_distance = min(front_ranges) if front_ranges else float('inf')
             self.left_distance = min(left_ranges) if left_ranges else float('inf')
             self.right_distance = min(right_ranges) if right_ranges else float('inf')
-            
-            self.get_logger().debug(f'Distances - Front: {self.front_distance:.2f}, Left: {self.left_distance:.2f}, Right: {self.right_distance:.2f}')
             
         except Exception as e:
             self.get_logger().error(f'Error processing LiDAR data: {e}')
@@ -89,9 +90,11 @@ class RobotController(Node):
             self.right_distance = float('inf')
 
     def gesture_callback(self, msg):
-        # Only accept new gestures if not avoiding obstacles
-        if not self.avoiding:
+        # Only process gesture if it's different from the last one
+        if msg.data != self.last_fingers and not self.avoiding:
             fingers = msg.data
+            self.last_fingers = fingers
+            
             if fingers == 5:
                 self.current_command = "FORWARD"
             elif fingers == 0:
@@ -103,69 +106,76 @@ class RobotController(Node):
             else:
                 self.current_command = "STOP"
             
-            self.get_logger().info(f'Received gesture command: {self.current_command}')
+            if self.current_command != self.last_command:
+                self.get_logger().info(f'New gesture command: {self.current_command}')
+                self.last_command = self.current_command
+                self.publish_command_once()
 
     def start_avoidance(self):
-        self.avoiding = True
-        self.avoid_start_time = time.time()
-        # Choose turn direction based on available space
-        self.turn_direction = 1 if self.left_distance > self.right_distance else -1
-        self.avoidance_phase = "TURNING"
-        self.get_logger().info(f'Starting avoidance maneuver, turning {"left" if self.turn_direction == 1 else "right"}')
+        # Only start avoidance if not already avoiding
+        if not self.avoiding:
+            self.avoiding = True
+            self.avoid_start_time = time.time()
+            self.turn_direction = 1 if self.left_distance > self.right_distance else -1
+            self.avoidance_phase = "TURNING"
+            self.get_logger().info(f'Starting avoidance maneuver, turning {"left" if self.turn_direction == 1 else "right"}')
+            # Stop current movement
+            self.publish_stop_command()
 
-    def publish_command(self):
+    def publish_stop_command(self):
+        cmd = Twist()
+        self.cmd_vel_publisher.publish(cmd)
+
+    def publish_command_once(self):
         cmd = Twist()
         
-        # Check for obstacles and handle avoidance
-        if self.front_distance < self.OBSTACLE_THRESHOLD:
-            if not self.avoiding:
+        if self.current_command == "FORWARD":
+            cmd.linear.x = self.FORWARD_SPEED
+        elif self.current_command == "LEFT":
+            cmd.angular.z = self.TURNING_SPEED
+        elif self.current_command == "RIGHT":
+            cmd.angular.z = -self.TURNING_SPEED
+        
+        self.cmd_vel_publisher.publish(cmd)
+
+    def publish_command(self):
+        # Check for obstacles
+        obstacle_detected = self.front_distance < self.OBSTACLE_THRESHOLD
+        
+        # If obstacle state changed
+        if obstacle_detected != self.last_obstacle_state:
+            self.last_obstacle_state = obstacle_detected
+            if obstacle_detected:
                 self.start_avoidance()
         
         # Handle avoidance sequence
         if self.avoiding:
             current_time = time.time() - self.avoid_start_time
+            cmd = Twist()
             
             if self.avoidance_phase == "TURNING":
-                # Execute turn
                 cmd.angular.z = self.TURNING_SPEED * self.turn_direction
                 
-                # Check if turn is complete
                 if current_time >= self.TURN_TIME:
                     self.avoidance_phase = "FORWARD"
-                    self.avoid_start_time = time.time()  # Reset timer for forward phase
+                    self.avoid_start_time = time.time()
                     self.get_logger().info('Turn complete, moving forward')
             
             elif self.avoidance_phase == "FORWARD":
-                # Move forward if no obstacle in front
                 if self.front_distance > self.OBSTACLE_THRESHOLD:
                     cmd.linear.x = self.FORWARD_SPEED
                     
-                    # Check if forward movement is complete
                     if current_time >= self.FORWARD_TIME:
                         self.avoiding = False
                         self.avoidance_phase = "NONE"
                         self.get_logger().info('Avoidance complete, resuming normal operation')
+                        # Restore last command
+                        self.publish_command_once()
+                        return
                 else:
-                    # If we encounter another obstacle during forward movement, restart avoidance
                     self.start_avoidance()
             
             self.cmd_vel_publisher.publish(cmd)
-            return
-        
-        # If not avoiding obstacles, execute gesture commands
-        if self.current_command == "FORWARD":
-            cmd.linear.x = self.FORWARD_SPEED
-            self.get_logger().info('Moving forward')
-        elif self.current_command == "LEFT":
-            cmd.angular.z = self.TURNING_SPEED
-            self.get_logger().info('Turning left')
-        elif self.current_command == "RIGHT":
-            cmd.angular.z = -self.TURNING_SPEED
-            self.get_logger().info('Turning right')
-        else:
-            self.get_logger().info('Stopped')
-        
-        self.cmd_vel_publisher.publish(cmd)
 
 def main(args=None):
     rclpy.init(args=args)
