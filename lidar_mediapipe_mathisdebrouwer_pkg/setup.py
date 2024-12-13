@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'lidar_mediapipe_mathisdebrouwer_pkg'
 
@@ -9,7 +11,8 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml']),('share/lidar_mediapipe_mathisdebrouwer_pkg/launch', ['launch/lidar_mediapipe_mathisdebrouwer_pkg_launch_file.launch.py']),
+        ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools', 'rclpy', 'opencv-python', 'mediapipe'],
     zip_safe=True,
