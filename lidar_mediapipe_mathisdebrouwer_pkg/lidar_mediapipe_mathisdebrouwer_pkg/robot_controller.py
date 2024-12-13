@@ -38,17 +38,24 @@ class RobotController(Node):
             self.current_command = "RIGHT"
         else:
             self.current_command = "STOP"
+        
+        # Add logging
+        self.get_logger().info(f'Received gesture command: {self.current_command}')
 
     def publish_command(self):
         cmd = Twist()
         
         if self.current_command == "FORWARD":
             cmd.linear.x = self.FORWARD_SPEED
+            self.get_logger().info('Moving forward')
         elif self.current_command == "LEFT":
             cmd.angular.z = self.TURNING_SPEED
+            self.get_logger().info('Turning left')
         elif self.current_command == "RIGHT":
             cmd.angular.z = -self.TURNING_SPEED
-        # STOP command will keep all values at 0
+            self.get_logger().info('Turning right')
+        else:
+            self.get_logger().info('Stopped')
         
         self.cmd_vel_publisher.publish(cmd)
 

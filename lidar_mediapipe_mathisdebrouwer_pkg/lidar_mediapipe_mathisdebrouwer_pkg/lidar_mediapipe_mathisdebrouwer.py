@@ -264,18 +264,76 @@ class ObstacleAvoidance(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ObstacleAvoidance()
-
+    
+    # Create the hand detector node
+    detector = handDetector()
+    
+    # Initialize camera
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        detector.get_logger().error('Could not open camera')
+        return
+        
+    pTime = 0
+    
     try:
-        rclpy.spin(node)
+        while rclpy.ok():
+            # Process any pending callbacks
+            rclpy.spin_once(detector, timeout_sec=0)
+            
+            # Read camera frame
+            success, img = cap.read()
+            if not success:
+                detector.get_logger().warn('Failed to read camera frame')
+                continue
+                
+            # Flip the image horizontally for a later selfie-view display
+            img = cv2.flip(img, 1)
+            
+            # Process hand detection
+            img = detector.findHands(img)
+            lmList = detector.findPosition(img)
+            
+            # Process gestures and publish commands
+            command_text = "NO HAND DETECTED"
+            if len(lmList) != 0:
+                fingers_up = detector.countFingers(lmList)
+                command_text = detector.get_command_text(fingers_up)
+                
+                # Publish gesture command
+                msg = Int32()
+                msg.data = fingers_up
+                detector.gesture_publisher.publish(msg)
+                
+                # Draw circles on fingertips for visualization
+                tipIds = [4, 8, 12, 16, 20]
+                for id in tipIds:
+                    cv2.circle(img, (lmList[id][1], lmList[id][2]), 8, (255, 0, 0), cv2.FILLED)
+            
+            # Calculate and display FPS
+            cTime = time.time()
+            fps = 1/(cTime-pTime)
+            pTime = cTime
+            
+            # Display FPS and command
+            cv2.putText(img, f'FPS: {int(fps)}', (10,30), cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
+            cv2.putText(img, f'Command: {command_text}', (10,70), cv2.FONT_HERSHEY_PLAIN, 2, (255,0,255), 2)
+            
+            # Show the image
+            cv2.imshow("Hand Tracking", img)
+            
+            # Break loop on 'q' press
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+                
     except KeyboardInterrupt:
-        # shutdown when Ctrl+C is pressed
-        node.get_logger().info('Node stopped ok.')
-    except Exception as e:
-        node.get_logger().error(f'Unhandled exceptioning? -->: {e}')
+        pass
     finally:
-        node.destroy_node()
+        # Clean up
+        cap.release()
+        cv2.destroyAllWindows()
+        detector.destroy_node()
         rclpy.shutdown()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
