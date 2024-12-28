@@ -23,8 +23,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'hand_detector = lidar_mediapipe_mathisdebrouwer_pkg.lidar_mediapipe_mathisdebrouwer:main',
-            'obstacle_avoidance = lidar_mediapipe_mathisdebrouwer_pkg.lidar_mediapipe_mathisdebrouwer:main',
+            'hand_detector = lidar_mediapipe_mathisdebrouwer_pkg.lidar_mediapipe_mathisdebrouwer:main_hand_detector',
+            'obstacle_avoidance = lidar_mediapipe_mathisdebrouwer_pkg.obstacle_avoidance:main',
             'robot_controller = lidar_mediapipe_mathisdebrouwer_pkg.robot_controller:main',
         ],
     },
