@@ -12,11 +12,11 @@ class ObstacleAvoidance(Node):
         self.get_logger().info('Obstacle Avoidance Node Started')
         
         # Constants
-        self.OBSTACLE_THRESHOLD = 0.3  # Distance to start avoiding
+        self.OBSTACLE_THRESHOLD = 0.35  # Distance to start avoiding
         self.FRONT_ANGLE = 30  # ±30 degrees for front detection
         self.SIDE_ANGLE = 45  # ±45 degrees for side detection
         self.TURNING_SPEED = 0.5
-        self.TURN_STEP = 30  # Increased step for faster response
+        self.FORWARD_SPEED = 0.15
         
         # Create subscribers and publishers
         self.cmd_vel_sub = self.create_subscription(
@@ -32,13 +32,13 @@ class ObstacleAvoidance(Node):
         self.left_distance = float('inf')
         self.right_distance = float('inf')
         self.turn_direction = 1
-        self.last_log_time = self.get_clock().now()
 
     def lidar_callback(self, msg):
+        self.latest_lidar_msg = msg  # Store the latest message
         try:
             ranges = np.array(msg.ranges)
             
-            # Get front distances (center ±30 degrees)
+            # Always check front distance
             front_indices = (
                 list(range(360 - self.FRONT_ANGLE, 360)) +
                 list(range(0, self.FRONT_ANGLE))
@@ -48,8 +48,11 @@ class ObstacleAvoidance(Node):
                 if i in front_indices and not np.isnan(r) and not np.isinf(r)
             ]
             
-            # Get side distances only when avoiding
-            if self.avoiding:
+            # Update front distance
+            self.front_distance = min(front_ranges) if front_ranges else float('inf')
+            
+            # Only check sides if we're in danger zone
+            if self.front_distance <= self.OBSTACLE_THRESHOLD:
                 left_indices = list(range(90 - self.SIDE_ANGLE, 90 + self.SIDE_ANGLE))
                 right_indices = list(range(270 - self.SIDE_ANGLE, 270 + self.SIDE_ANGLE))
                 
@@ -58,18 +61,7 @@ class ObstacleAvoidance(Node):
                 
                 self.left_distance = min(left_ranges) if left_ranges else float('inf')
                 self.right_distance = min(right_ranges) if right_ranges else float('inf')
-            
-            # Update front distance
-            old_front = self.front_distance
-            self.front_distance = min(front_ranges) if front_ranges else float('inf')
-            
-            # Log only significant changes and not too frequently
-            now = self.get_clock().now()
-            if (abs(old_front - self.front_distance) > 0.1 and 
-                (now - self.last_log_time).nanoseconds / 1e9 > 1.0):  # Log at most once per second
-                self.get_logger().info(f'Front distance: {self.front_distance:.2f}m')
-                self.last_log_time = now
-            
+                
         except Exception as e:
             self.get_logger().error(f'Error processing LiDAR data: {e}')
             self.front_distance = float('inf')
@@ -86,12 +78,14 @@ class ObstacleAvoidance(Node):
             self.publish_stop()
             if not self.avoiding:
                 self.avoiding = True
-                self.get_logger().warn(f'Obstacle detected at {self.front_distance:.2f}m - stopping')
+                self.get_logger().warn('Starting obstacle avoidance maneuver')
                 self.avoid_obstacle()
         else:
             if self.avoiding:
                 self.avoiding = False
-                self.get_logger().info('Path is clear - resuming normal operation')
+                self.get_logger().info('Path is clear - You can take control now!')
+            
+            # Just forward the command without modification
             self.safe_cmd_pub.publish(self.current_cmd)
 
     def avoid_obstacle(self):
@@ -103,26 +97,24 @@ class ObstacleAvoidance(Node):
         # Choose turn direction based on side distances
         self.turn_direction = 1 if self.left_distance > self.right_distance else -1
         
-        # Turn until clear
-        while self.front_distance <= self.OBSTACLE_THRESHOLD:
+        # Start turning until the front distance is clear
+        while self.front_distance < self.OBSTACLE_THRESHOLD:
             cmd = Twist()
             cmd.angular.z = self.TURNING_SPEED * self.turn_direction
             self.safe_cmd_pub.publish(cmd)
-            time.sleep(0.2)
+            time.sleep(0.2)  # Allow time for the robot to turn
             
-            # Stop and check
-            self.publish_stop()
-            time.sleep(0.1)
+            # Re-check the front distance
+            self.lidar_callback(self.latest_lidar_msg)  # Assuming last_scan is the last received scan data
             
-            # If we're still not clear after some time, try other direction
-            if time.time() - start_time > 2.0:  # After 2 seconds
-                self.turn_direction *= -1
-                start_time = time.time()
+            # If the front distance is clear, break the loop
+            if self.front_distance >= self.OBSTACLE_THRESHOLD:
+                break
         
         # Stop when clear
         self.publish_stop()
         self.avoiding = False
-        self.get_logger().info('Found clear path')
+        self.get_logger().info('Path is clear - You can take control now!')
 
     def publish_stop(self):
         """Publish a stop command"""

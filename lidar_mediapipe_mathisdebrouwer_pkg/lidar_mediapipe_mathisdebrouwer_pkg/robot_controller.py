@@ -23,8 +23,9 @@ class RobotController(Node):
         self.BACKUP_TIME = 1.0  # Longer backup time
         
         # Robot control parameters
-        self.FORWARD_SPEED = 2.0
+        self.FORWARD_SPEED = 0.15  # Reduced from 2.0 to 0.15 for more control
         self.TURNING_SPEED = 0.5
+        self.SLOW_SPEED = 0.1  # Speed when obstacles are nearby
         
         # Add QoS profile for better LiDAR data reliability
         qos_profile = rclpy.qos.QoSProfile(
@@ -220,24 +221,18 @@ class RobotController(Node):
                 self.publish_command_once()
 
     def publish_command_once(self):
-        # First check for obstacles
-        if self.front_distance < self.OBSTACLE_THRESHOLD:
+        # Only check for very close obstacles
+        if self.front_distance < 0.35:  # Only intervene when really close
             self.get_logger().info('Obstacle detected during normal operation')
             self.start_avoidance()
             return
 
-        # Only proceed with normal commands if not avoiding
+        # Normal operation - full speed
         if not self.avoiding:
             cmd = Twist()
             
             if self.current_command == "FORWARD":
-                # Adjust speed based on proximity to obstacles
-                if self.front_distance < self.OBSTACLE_THRESHOLD * 2:  # Start slowing down earlier
-                    speed_factor = (self.front_distance - self.OBSTACLE_THRESHOLD) / self.OBSTACLE_THRESHOLD
-                    cmd.linear.x = self.FORWARD_SPEED * max(0.0, min(1.0, speed_factor))
-                    self.get_logger().info(f'Slowing down - obstacle ahead at {self.front_distance:.2f}m')
-                else:
-                    cmd.linear.x = self.FORWARD_SPEED
+                cmd.linear.x = self.FORWARD_SPEED
             elif self.current_command == "LEFT":
                 cmd.angular.z = self.TURNING_SPEED
             elif self.current_command == "RIGHT":
