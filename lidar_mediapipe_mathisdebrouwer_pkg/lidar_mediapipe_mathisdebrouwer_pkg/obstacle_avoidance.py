@@ -1,3 +1,4 @@
+# Remove all imports except these
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
@@ -196,4 +197,4 @@ def main(args=None):
     rclpy.shutdown()
 
 if __name__ == '__main__':
-    main() 
+    main()
