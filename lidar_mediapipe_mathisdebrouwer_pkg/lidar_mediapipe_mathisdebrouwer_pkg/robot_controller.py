@@ -23,7 +23,7 @@ class RobotController(Node):
         self.BACKUP_TIME = 1.0  # Longer backup time
         
         # Robot control parameters
-        self.FORWARD_SPEED = 0.15  # Reduced for safer operation
+        self.FORWARD_SPEED = 2
         self.TURNING_SPEED = 0.5
         
         # Add QoS profile for better LiDAR data reliability
