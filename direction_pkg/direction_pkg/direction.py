@@ -48,16 +48,27 @@ class DirectionPublisher(Node):
     def load_model(self):
         try:
             # Replace with your actual model path and loading code
-            model_path = self.get_parameter('model_path').value
+            model_path = self.get_parameter('model_path').value if self.has_parameter('model_path') else None
             if model_path is None:
                 model_path = 'path_to_your_model.pth'  # Default path
-                
-            model = torch.load(model_path, map_location=torch.device('cpu'))
+            
+            # Check if GPU is available
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.get_logger().info(f'Using device: {device}')
+            
+            # Load model to the detected device
+            model = torch.load(model_path, map_location=device)
             model.eval()
+            model.to(device)  # Move model to GPU if available
+            
+            # Store the device for later use with tensors
+            self.device = device
+            
             return model
         except Exception as e:
             self.get_logger().error(f'Failed to load model: {str(e)}')
             # Return a dummy model for testing purposes
+            self.device = torch.device('cpu')
             return None
     
     def image_callback(self, msg):
@@ -68,7 +79,7 @@ class DirectionPublisher(Node):
         """Convert ROS Image to PyTorch tensor for model input"""
         if image_data is None:
             # Generate dummy data for testing if no image is available
-            return torch.randn(1, 3, 224, 224)
+            return torch.randn(1, 3, 224, 224, device=self.device)
             
         try:
             # Convert ROS Image message to OpenCV image
@@ -81,10 +92,12 @@ class DirectionPublisher(Node):
             
             # Convert to PyTorch tensor
             tensor = torch.from_numpy(cv_image.transpose(2, 0, 1)).float().unsqueeze(0) / 255.0
+            # Move tensor to the same device as the model
+            tensor = tensor.to(self.device)
             return tensor
         except Exception as e:
             self.get_logger().error(f'Failed to preprocess image: {str(e)}')
-            return torch.randn(1, 3, 224, 224)  # Fallback to random data
+            return torch.randn(1, 3, 224, 224, device=self.device)  # Fallback to random data
 
     def process_segmentation(self, segmentation_output):
         """
